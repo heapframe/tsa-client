@@ -6,7 +6,7 @@
 #define TSA_CLIENT_TSA_CRYPTO_H
 #include <ios>
 
-TS_REQ *createquery(unsigned char *digest,
+TS_REQ *create_query(unsigned char *digest,
                     const int digest_len, const EVP_MD *md);
 
 #ifdef ENABLE_FREETSA_BUNDLE

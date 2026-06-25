@@ -101,3 +101,35 @@ if(ENABLE_FREETSA_BUNDLE)
     target_include_directories(tsa_client PRIVATE ${CMAKE_BINARY_DIR})
 
 endif()
+
+# -----------------------------------------
+# Tests
+# -----------------------------------------
+enable_testing()
+find_package(GTest REQUIRED)
+
+add_executable(tsa_tests
+        tests/test_file_io.cpp
+        tests/test_tsa_crypto.cpp
+        tests/test_tsa_network.cpp
+        file_io.cpp
+        tsa/tsa_crypto.cpp
+        tsa/tsa_network.cpp
+)
+
+target_compile_definitions(tsa_tests PRIVATE ENABLE_FREETSA_BUNDLE)
+
+target_link_libraries(tsa_tests
+        GTest::GTest
+        GTest::Main
+        OpenSSL::SSL
+        OpenSSL::Crypto
+        CURL::libcurl
+)
+
+target_include_directories(tsa_tests PRIVATE ${CMAKE_BINARY_DIR})
+
+add_dependencies(tsa_tests cert_bundle)
+
+include(GoogleTest)
+gtest_discover_tests(tsa_tests)

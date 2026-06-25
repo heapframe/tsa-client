@@ -33,7 +33,7 @@ int main(const int argc, char *argv[]) {
         tsa_server = argv[2];
     }
 
-    if (auto file = read_file(argv[1]); !file.empty())
+    if (const auto file = read_file(argv[1]); !file.empty())
     {
         unsigned char hash[64];
         unsigned int hash_length;
@@ -41,7 +41,7 @@ int main(const int argc, char *argv[]) {
         if (create_hash(static_cast<std::streamsize>(file.size()), file.data(), hash, hash_length))
             return 1;
 
-        TS_REQ *tsq = createquery(hash, static_cast<int>(hash_length), EVP_sha512());
+        TS_REQ *tsq = create_query(hash, static_cast<int>(hash_length), EVP_sha512());
         if (tsq == nullptr) {
             std::cerr << "Error: Could not create request object" << std::endl;
             return 1;

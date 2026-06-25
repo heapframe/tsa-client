@@ -5,20 +5,34 @@
 #include <openssl/pem.h>
 #include <openssl/ts.h>
 #include <openssl/x509.h>
+#include <openssl/rand.h>
+#include <iostream>
 
 #include "tsa_crypto.h"
 
-#include <iostream>
 
 #ifdef ENABLE_FREETSA_BUNDLE
 #include "freetsa_bundle.h"
 #endif
 
-TS_REQ *createquery(unsigned char *digest,
+static ASN1_INTEGER *create_nonce() {
+    //adaptation of create_nonce from openssl/openssl/apps/ts.c:567
+    BIGNUM *bn = BN_new();
+    ASN1_INTEGER *ai = ASN1_INTEGER_new();
+
+    BN_rand(bn, 64, 0, 0);
+    BN_to_ASN1_INTEGER(bn, ai);
+
+    BN_free(bn);
+    return ai;
+}
+
+TS_REQ *create_query(unsigned char *digest,
                            const int digest_len, const EVP_MD *md) { //adaptation of create_query from openssl/openssl/apps/ts.c:455
     TS_REQ *ts_req = nullptr;
     TS_MSG_IMPRINT *msg_imprint = nullptr;
     X509_ALGOR *algo = nullptr;
+    ASN1_INTEGER *nonce_asn1 = NULL;
     // TODO: Add nonce to prevent replay attacks
     // https://datatracker.ietf.org/doc/html/rfc3161#section-2.2
 
@@ -32,6 +46,7 @@ TS_REQ *createquery(unsigned char *digest,
     TS_MSG_IMPRINT_set_msg(msg_imprint, digest, digest_len);
     TS_REQ_set_msg_imprint(ts_req, msg_imprint);
     TS_REQ_set_cert_req(ts_req, 1);
+    TS_REQ_set_nonce(ts_req, create_nonce());
 
     TS_MSG_IMPRINT_free(msg_imprint);
     X509_ALGOR_free(algo);
