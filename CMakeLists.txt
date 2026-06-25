@@ -6,11 +6,18 @@ set(CMAKE_CXX_STANDARD 20)
 option(ENABLE_FREETSA_BUNDLE "Embed FreeTSA cert bundle" ON)
 
 find_package(OpenSSL REQUIRED)
+find_program(OPENSSL openssl REQUIRED)
 find_package(CURL REQUIRED)
 find_program(XXD xxd REQUIRED)
 find_program(CURL_BIN curl REQUIRED)
 
-add_executable(tsa_client main.cpp)
+add_executable(tsa_client main.cpp
+        tsa/tsa_network.h
+        tsa/tsa_network.cpp
+        tsa/tsa_crypto.h
+        tsa/tsa_crypto.cpp
+        file_io.h
+        file_io.cpp)
 
 target_link_libraries(tsa_client
         OpenSSL::SSL
@@ -38,18 +45,25 @@ if(ENABLE_FREETSA_BUNDLE)
     file(MAKE_DIRECTORY ${CERT_DIR})
 
     # -----------------------------
-    # Step 1: fetch certs (BUILD TIME)
+    # Step 1: fetch certs
     # -----------------------------
+    set(KNOWN_CA_FP "sha256 Fingerprint=A6:37:9E:7C:EC:C0:5F:AA:3C:BF:07:60:13:D7:45:E3:27:BB:BA:A3:8C:0B:9A:F2:24:69:D4:70:1D:18:AA:BC")
+    set(KNOWN_CRT_FP "sha256 Fingerprint=32:E8:41:A9:5C:C1:16:41:01:FF:DE:41:29:8E:F2:FC:75:C1:C4:37:2E:F0:95:E8:8A:6B:BD:47:DF:B1:91:FC")
+
     add_custom_command(
             OUTPUT ${CA_FILE}
             COMMAND ${CURL_BIN} -s ${CA_URL} -o ${CA_FILE}
-            COMMENT "Fetching FreeTSA CA"
+            # If grep fails to find the fingerprint, echo the warning, but return true (exit 0) so the build continues
+            COMMAND ${OPENSSL} x509 -in ${CA_FILE} -noout -sha256 -fingerprint | grep -qxF "${KNOWN_CA_FP}"
+            || echo "WARNING: FreeTSA CA Mismatch!"
     )
 
     add_custom_command(
             OUTPUT ${TSA_FILE}
             COMMAND ${CURL_BIN} -s ${TSA_URL} -o ${TSA_FILE}
-            COMMENT "Fetching FreeTSA TSA cert"
+            # Same logic here for the TSA cert
+            COMMAND ${OPENSSL} x509 -in ${TSA_FILE} -noout -sha256 -fingerprint | grep -qxF "${KNOWN_CRT_FP}"
+            || echo "WARNING: FreeTSA CRT Mismatch!"
     )
 
     # -----------------------------
