@@ -6,11 +6,23 @@
 #include <fstream>
 #include <iomanip>
 #include <curl/curl.h>
+#include <openssl/err.h>
+
+#ifdef ENABLE_FREETSA_BUNDLE
+#include "freetsa_bundle.h"
+#include <openssl/pem.h>
+#endif
 
 #define DEFAULT_TSA "https://freetsa.org/tsr"
 
+/*
+ * Some other good ones:
+ * http://timestamp.apple.com/ts01
+ * https://rfc3161.ai.moda/microsoft
+*/
+
 static TS_REQ *createquery(unsigned char *digest,
-                           const int digest_len, const EVP_MD *md) { //adaptation of create_query from openssl/openssl/blob/master/apps/ts.c:455
+                           const int digest_len, const EVP_MD *md) { //adaptation of create_query from openssl/openssl/apps/ts.c:455
     TS_REQ *ts_req = nullptr;
     TS_MSG_IMPRINT *msg_imprint = nullptr;
     X509_ALGOR *algo = nullptr;
@@ -75,6 +87,51 @@ CURLcode sendquery(CURLcode ret, char *buf, int len, std::string *s, const char 
     return ret;
 }
 
+static int verify_cb(const int ok, const X509_STORE_CTX *ctx)
+{
+    if (!ok) {
+        const int err = X509_STORE_CTX_get_error(ctx);
+
+        std::cerr << "error: \"" << X509_verify_cert_error_string(err) << "\"" << std::endl;
+        if (err == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN) {
+            std::cerr << "This is normal for public TSA's however you should strongly consider adding their certificates to your certificate store" << std::endl;
+        }
+    }
+    return ok;
+}
+
+#ifdef ENABLE_FREETSA_BUNDLE
+X509_STORE* load_store_from_embedded_pem()
+{
+    BIO* bio = BIO_new_mem_buf(
+        freetsa_bundle,
+        (int)freetsa_bundle_len
+    );
+
+    if (!bio) return nullptr;
+
+    X509_STORE* store = X509_STORE_new();
+    if (!store) {
+        BIO_free(bio);
+        return nullptr;
+    }
+
+    while (true) {
+        X509* cert = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr);
+        if (!cert)
+            break; // end or parse error
+
+        X509_STORE_add_cert(store, cert);
+
+        // X509_STORE_add_cert increments refcount internally in OpenSSL 3
+        X509_free(cert);
+    }
+
+    BIO_free(bio);
+    return store;
+}
+#endif
+
 int main(const int argc, char *argv[]) {
     const char* tsaserver = DEFAULT_TSA;
 
@@ -91,7 +148,7 @@ int main(const int argc, char *argv[]) {
 
     if (std::ifstream file(argv[1], std::ios::in|std::ios::binary|std::ios::ate); file.is_open())
     {
-        auto size = static_cast<std::size_t>(file.tellg());
+        auto size = static_cast<std::streamsize>(file.tellg());
         auto *memblock = new char[size];
         file.seekg(0, std::ios::beg);
         file.read(memblock, size);
@@ -133,7 +190,7 @@ int main(const int argc, char *argv[]) {
         //std::cout << hash << std::endl;
 
 
-        TS_REQ *tsq = createquery(hash, hash_length, EVP_sha512());
+        TS_REQ *tsq = createquery(hash, static_cast<int>(hash_length), EVP_sha512());
         if (tsq == nullptr) {
             std::cerr << "Error: Could not create request object" << std::endl;
             return 1;
@@ -186,12 +243,97 @@ int main(const int argc, char *argv[]) {
                 tsr_output.close();
                 std::cout << "TSR written to " << tsr_filename << std::endl;
             }
-            else std::cerr << "Unable to open " << tsr_filename << " for writing" << std::endl;
-        } else std::cerr << "Network error, TSA server may be down" << std::endl;
+            else {
+                std::cerr << "Unable to open " << tsr_filename << " for writing" << std::endl;
+                return 1;
+            }
+        } else {
+            std::cerr << "Network error, TSA server may be down" << std::endl;
+            return 1;
+        }
     }
     else {
         std::cerr << "Unable to open file";
         return 1;
+    }
+
+    std::ifstream tsr(std::format("{}.tsr", argv[1]), std::ios::in|std::ios::binary|std::ios::ate);
+    std::ifstream tsq(std::format("{}.tsq", argv[1]), std::ios::in|std::ios::binary|std::ios::ate);
+
+    if (tsr.is_open() && tsq.is_open()) {
+        auto tsr_size = static_cast<std::streamsize>(tsr.tellg());
+        auto *tsr_memblock = new char[tsr_size];
+        tsr.seekg(0, std::ios::beg);
+        tsr.read(tsr_memblock, tsr_size);
+        tsr.close();
+
+        auto tsq_size = static_cast<std::streamsize>(tsq.tellg());
+        auto *tsq_memblock = new char[tsq_size];
+        tsq.seekg(0, std::ios::beg);
+        tsq.read(tsq_memblock, tsq_size);
+        tsq.close();
+
+        const unsigned char *response = reinterpret_cast<unsigned char*>(tsr_memblock);
+        const unsigned char *request = reinterpret_cast<unsigned char*>(tsq_memblock);
+
+        TS_RESP *resp = d2i_TS_RESP(nullptr, &response, tsr_size);
+        TS_REQ *req = d2i_TS_REQ(nullptr, &request, tsq_size);
+        TS_VERIFY_CTX *ctx = nullptr;
+
+        if (!resp) {
+            std::cerr << "Error: Could not create response object" << std::endl;
+            delete[] tsr_memblock;
+            delete[] tsq_memblock;
+            return 1;
+        }
+
+        if ((ctx = TS_REQ_to_TS_VERIFY_CTX(req, nullptr)) == nullptr) {
+            std::cerr << "Error: Failed" << std::endl;
+            delete[] tsr_memblock;
+            delete[] tsq_memblock;
+            return 1;
+        }
+
+        if (!TS_RESP_get_tst_info(resp)) {
+            std::cerr << "Missing TST info" << std::endl;
+        }
+
+        TS_VERIFY_CTX_add_flags(ctx, TS_VFY_SIGNATURE | TS_VFY_IMPRINT);
+
+        X509_STORE *store = nullptr;
+#ifdef ENABLE_FREETSA_BUNDLE
+        if (strcmp(tsaserver, "https://freetsa.org/tsr") == 0) {
+            store = load_store_from_embedded_pem();
+        } else {
+            store = X509_STORE_new();
+        }
+#else
+        store = X509_STORE_new();
+#endif
+        X509_STORE_set_default_paths(store);
+        X509_STORE_set_verify_cb(store, reinterpret_cast<X509_STORE_CTX_verify_cb>(verify_cb));
+
+        if (!TS_VERIFY_CTX_set0_store(ctx, store)) {
+            std::cerr << "Error: Failed to load certificate store" << std::endl;
+            delete[] tsr_memblock;
+            delete[] tsq_memblock;
+            return 1;
+        }
+
+        if (TS_RESP_verify_response(ctx, resp)) {
+            std::cout << "Successfully verified TSR" << std::endl;
+        } else {
+            std::cerr << "Failed to verify TSR" << std::endl;
+        }
+
+        TS_RESP_free(resp);
+        TS_REQ_free(req);
+
+        delete[] tsr_memblock;
+        delete[] tsq_memblock;
+    } else {
+        std::cerr << "Unable to open " << std::format("{}.tsr", argv[1]) << " and "
+        << std::format("{}.tsq", argv[1]) << std::endl;
     }
 
     return 0;
