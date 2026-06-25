@@ -1,5 +1,7 @@
 # tsa-client
 
+[![Tests](https://github.com/heapframe/tsa-client/actions/workflows/test.yml/badge.svg)](https://github.com/heapframe/tsa-client/actions/workflows/test.yml)
+
 A command-line RFC 3161 Time-Stamp Authority (TSA) client written in C++20.
 
 Given any file, it computes a SHA-512 digest, sends a timestamp request to a TSA server, and saves a cryptographically-signed timestamp token that proves the file existed at a specific point in time. The timestamp can be verified offline at any point in the future.
