@@ -32,9 +32,6 @@ TS_REQ *create_query(unsigned char *digest,
     TS_REQ *ts_req = nullptr;
     TS_MSG_IMPRINT *msg_imprint = nullptr;
     X509_ALGOR *algo = nullptr;
-    ASN1_INTEGER *nonce_asn1 = NULL;
-    // TODO: Add nonce to prevent replay attacks
-    // https://datatracker.ietf.org/doc/html/rfc3161#section-2.2
 
     //construct ( https://datatracker.ietf.org/doc/html/rfc3161#section-2.4.1 )
     ts_req = TS_REQ_new();
@@ -129,6 +126,7 @@ bool verify_tsr(const char *tsaserver, const std::streamsize tsr_size, const std
     const unsigned char *response, const unsigned char *request) {
 
     bool success = false;
+    bool load_store = false;
     TS_RESP *resp = d2i_TS_RESP(nullptr, &response, tsr_size);
     TS_REQ *req = d2i_TS_REQ(nullptr, &request, tsq_size);
     TS_VERIFY_CTX *ctx = nullptr;
@@ -172,8 +170,14 @@ bool verify_tsr(const char *tsaserver, const std::streamsize tsr_size, const std
     X509_STORE_set_default_paths(store);
     X509_STORE_set_verify_cb(store, reinterpret_cast<X509_STORE_CTX_verify_cb>(verify_cb));
 
+    //because github actions runners and the ubuntu latest image use outdated openssl with deprecated code
+#if OPENSSL_VERSION_NUMBER >= 0x30400000L
+    load_store = TS_VERIFY_CTX_set0_store(ctx, store);
+#else
+    load_store = TS_VERIFY_CTX_set_store(ctx, store);
+#endif
 
-    if (!TS_VERIFY_CTX_set0_store(ctx, store)) {
+    if (!load_store) {
         std::cerr << "Error: Failed to load certificate store into context" << std::endl;
         X509_STORE_free(store); // Free it manually since set0 failed to take ownership
         goto cleanup;
