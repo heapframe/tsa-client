@@ -1,3 +1,4 @@
+#include <format>
 #include <iostream>
 #include <openssl/ts.h>
 #include <openssl/evp.h>
@@ -5,8 +6,8 @@
 #include <fstream>
 #include <iomanip>
 
-static TS_REQ *createquery(const char *hash, const EVP_MD *md
-    ) { //adaptation of create_query from openssl/openssl/blob/master/apps/ts.c:455
+static TS_REQ *createquery(const unsigned char *digest,
+    const int digest_len, const EVP_MD *md) { //adaptation of create_query from openssl/openssl/blob/master/apps/ts.c:455
     TS_REQ *ts_req = nullptr;
     TS_MSG_IMPRINT *msg_imprint = nullptr;
     X509_ALGOR *algo = nullptr;
@@ -23,11 +24,9 @@ static TS_REQ *createquery(const char *hash, const EVP_MD *md
     algo->parameter = ASN1_TYPE_new();
     algo->parameter->type = V_ASN1_NULL;
     TS_MSG_IMPRINT_set_algo(msg_imprint, algo);
-    constexpr int len = sizeof(hash);
-    TS_MSG_IMPRINT_set_msg(msg_imprint, data, len);
+    TS_MSG_IMPRINT_set_msg(msg_imprint, data, digest_len);
     TS_REQ_set_msg_imprint(ts_req, msg_imprint);
     TS_REQ_set_cert_req(ts_req, 1);
-
 
     TS_MSG_IMPRINT_free(msg_imprint);
     X509_ALGOR_free(algo);
@@ -54,7 +53,7 @@ int main(const int argc, char *argv[]) {
         file.close();
 
         EVP_MD_CTX * context = EVP_MD_CTX_create();
-        EVP_DigestInit(context, EVP_sha256());
+        EVP_DigestInit(context, EVP_sha512());
         EVP_DigestUpdate(context, memblock, size);
 
         unsigned char hash[EVP_MAX_MD_SIZE];
@@ -66,12 +65,31 @@ int main(const int argc, char *argv[]) {
 
         delete[] memblock;
 
-        TS_REQ *req = createquery(reinterpret_cast<const char *>(hash), reinterpret_cast<const EVP_MD *>(hash));
-        if (req == nullptr) {
+        TS_REQ *tsq = createquery(hash, sizeof(hash), EVP_sha512());
+        if (tsq == nullptr) {
             std::cerr << "Error: Could not create request object" << std::endl;
-        } else {
-            std::cerr << "Request object created" << std::endl;
+            return 1;
         }
+
+        //save tsq
+        std::string tsq_filename = std::format("{}.tsq", argv[1]);
+        unsigned char *buf = nullptr;
+
+        if (int len = i2d_TS_REQ(tsq, &buf); len <= 0) {
+            std::cerr << "Error: Failed to DER encode TSQ" << std::endl;
+        } else {
+            std::ofstream tsq_output;
+            tsq_output.open (tsq_filename, std::ios::out | std::ios::app | std::ios::binary);
+            if (tsq_output.is_open())
+            {
+                tsq_output.write(reinterpret_cast<const char*>(buf), len);
+                tsq_output.close();
+            }
+            else std::cout << "Unable to open " << tsq_filename << " for writing" << std::endl;
+        }
+
+        OPENSSL_free(buf);
+
 
     }
     else {
