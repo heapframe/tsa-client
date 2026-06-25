@@ -26,13 +26,23 @@ Given any file, it computes a SHA-512 digest, sends a timestamp request to a TSA
 tsa_client <filename> [tsa_server]
 ```
 
-```sh
+```
 # Timestamp a file using the default TSA (freetsa.org)
-tsa_client document.pdf
-
+./tsa_client document.pdf
+TSR written to document.pdf.tsq
+TSR written to document.pdf.tsr
+Successfully verified TSR
+```
+```
 # Timestamp using a custom TSA
-tsa_client document.pdf https://timestamp.apple.com/ts01
-
+./tsa_client document.pdf https://timestamp.apple.com/ts01
+TSR written to document.pdf.tsq
+TSR written to document.pdf.tsr
+error: "self-signed certificate in certificate chain"
+This is normal for public TSA's however you should strongly consider adding their certificates to your certificate store
+Failed to verify TSR
+```
+```
 # Output
 document.pdf.tsq   # The timestamp request sent to the TSA
 document.pdf.tsr   # The signed timestamp token from the TSA
