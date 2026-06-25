@@ -1,0 +1,35 @@
+name: Tests
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build \
+            libssl-dev \
+            libcurl4-openssl-dev \
+            libgtest-dev \
+            xxd \
+            curl \
+            openssl
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build tests
+        run: cmake --build build --target tsa_tests
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure

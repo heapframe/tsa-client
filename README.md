@@ -103,8 +103,9 @@ tsa-client/
 
 ## Dependencies
 
-| Library | Purpose |
+| Library / Tool | Purpose |
 |---|---|
 | [OpenSSL](https://www.openssl.org/) | SHA-512 hashing, RFC 3161 request/response types, TSR verification |
 | [libcurl](https://curl.se/libcurl/) | HTTPS POST to TSA endpoint |
+| [xxd](https://linux.die.net/man/1/xxd) | Converts the FreeTSA certificate bundle into a C header at build time (`ENABLE_FREETSA_BUNDLE=ON` only) |
 | [Google Test](https://github.com/google/googletest) | Unit testing (build-time only) |
