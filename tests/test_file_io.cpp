@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 #include <fstream>
 #include <filesystem>
+#include <string>
+#include <vector>
+
 #include "../file_io.h"
 
 namespace fs = std::filesystem;

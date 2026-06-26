@@ -5,7 +5,13 @@
 #include <openssl/pem.h>
 #include <openssl/ts.h>
 #include <openssl/x509.h>
-#include <openssl/rand.h>
+#include <openssl/asn1.h>
+#include <openssl/bio.h>
+#include <openssl/bn.h>
+#include <openssl/evp.h>
+#include <openssl/objects.h>
+#include <openssl/opensslv.h>
+#include <string.h>
 #include <iostream>
 
 #include "tsa_crypto.h"

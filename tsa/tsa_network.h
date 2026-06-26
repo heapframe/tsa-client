@@ -4,9 +4,9 @@
 
 #ifndef TSA_CLIENT_TS_H
 #define TSA_CLIENT_TS_H
-#include <string>
 #include <curl/curl.h>
-#include <openssl/ts.h>
+#include <stddef.h>
+#include <string>
 
 size_t writefunc(void *ptr, size_t size, size_t nmemb, void *userdata);
 

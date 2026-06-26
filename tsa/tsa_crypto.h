@@ -4,6 +4,8 @@
 
 #ifndef TSA_CLIENT_TSA_CRYPTO_H
 #define TSA_CLIENT_TSA_CRYPTO_H
+#include <openssl/ts.h>
+#include <openssl/types.h>
 #include <ios>
 
 TS_REQ *create_query(unsigned char *digest,

@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
+#include <stddef.h>
 #include <string>
+
 #include "../tsa/tsa_network.h"
 
 // ---- writefunc ---------------------------------------------------------------

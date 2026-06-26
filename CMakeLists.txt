@@ -6,10 +6,12 @@ set(CMAKE_CXX_STANDARD 20)
 option(ENABLE_FREETSA_BUNDLE "Embed FreeTSA cert bundle" ON)
 
 find_package(OpenSSL REQUIRED)
-find_program(OPENSSL openssl REQUIRED)
 find_package(CURL REQUIRED)
+find_program(OPENSSL openssl REQUIRED)
 find_program(XXD xxd REQUIRED)
 find_program(CURL_BIN curl REQUIRED)
+find_program(IWYU_EXECUTABLE NAMES include-what-you-use iwyu)
+find_program(VALGRIND_EXECUTABLE valgrind)
 
 add_executable(tsa_client main.cpp
         tsa/tsa_network.h
@@ -133,3 +135,26 @@ add_dependencies(tsa_tests cert_bundle)
 
 include(GoogleTest)
 gtest_discover_tests(tsa_tests)
+
+# -----------------------------------------
+# Optimisation and stability tests
+# -----------------------------------------
+
+if (IWYU_EXECUTABLE)
+    set_target_properties(tsa_client PROPERTIES
+            CXX_INCLUDE_WHAT_YOU_USE
+            "${IWYU_EXECUTABLE};-Xiwyu;--mapping_file=/usr/share/include-what-you-use/iwyu.gcc.imp"
+    )
+endif()
+
+if (VALGRIND_EXECUTABLE)
+    add_custom_target(valgrind
+            COMMAND
+            ${VALGRIND_EXECUTABLE}
+            --tool=massif
+            $<TARGET_FILE:tsa_client>
+            DEPENDS tsa_client
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            USES_TERMINAL
+    )
+endif()

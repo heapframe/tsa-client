@@ -4,6 +4,7 @@
 
 #ifndef TSA_CLIENT_WRITE_H
 #define TSA_CLIENT_WRITE_H
+#include <stddef.h>
 #include <string>
 #include <vector>
 

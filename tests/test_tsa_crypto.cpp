@@ -2,6 +2,16 @@
 #include <openssl/ts.h>
 #include <openssl/evp.h>
 #include <openssl/x509.h>
+#include <openssl/asn1.h>
+#include <openssl/crypto.h>
+#include <openssl/obj_mac.h>
+#include <openssl/objects.h>
+#include <openssl/types.h>
+#include <stdio.h>
+#include <string.h>
+#include <iosfwd>
+#include <string>
+
 #include "../tsa/tsa_crypto.h"
 
 // ---- create_hash -------------------------------------------------------------
