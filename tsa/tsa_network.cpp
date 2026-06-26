@@ -9,7 +9,7 @@
 #include <curl/curl.h>
 
 size_t writefunc(void *ptr, size_t size, size_t nmemb, void *userdata)
-{ //adapted from https://stackoverflow.com/questions/2329571/c-libcurl-get-output-into-a-string/61805520#61805520
+{   //adapted from https://stackoverflow.com/questions/2329571/c-libcurl-get-output-into-a-string/61805520#61805520
     auto *s = static_cast<std::string*>(userdata);
     s->append(static_cast<char*>(ptr), size * nmemb);
     return size * nmemb;
